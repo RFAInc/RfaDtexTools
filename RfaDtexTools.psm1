@@ -41,8 +41,8 @@ function Install-Dtex {
         
         # Run the Installer
         $InstallParams = $RawInstallParams -f $MsiInstallerLeaf, $Address, $Log
-        Start-Process 'msiexec.exe' -ArgumentList $InstallParams
-        Write-Verbose "MSI Installer Executed as: msiexec.exe $InstallParams"
+        Write-Verbose "MSI Installer Executing as: msiexec.exe $InstallParams"
+        Start-Process 'msiexec.exe' -ArgumentList $InstallParams -Wait
     }
     End {}
 }
@@ -284,8 +284,10 @@ function Invoke-ClientDtexInstall {
     
     begin {
         $defaultMsiInstallerPath="$($env:WINDIR)\LtSvc\Packages\Dtex\DtexMicroAgentX64.msi"
-        $u1='https://automate.rfa.com/hidden/install/dtex/DtexMicroAgentX64.msi'
-        $u2='https://automate.rfa.com/hidden/install/dtex/DtexMicroAgentX64.msi.sha1.txt'
+        #$u1='https://automate.rfa.com/hidden/install/dtex/DtexMicroAgentX64.msi'
+        #$u2='https://automate.rfa.com/hidden/install/dtex/DtexMicroAgentX64.msi.sha1.txt'
+        $u1='https://automate.rfa.com/LabTech/Transfer/Software/Dtex/DtexMicroAgentX64.msi'
+        $u2='https://automate.rfa.com/LabTech/Transfer/Software/Dtex/DtexMicroAgentX64.msi.sha1'
         $Output = ''
     }
     
