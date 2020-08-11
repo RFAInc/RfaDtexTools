@@ -71,32 +71,30 @@ function Uninstall-Dtex {
         # Removal Password in plain text
         [Parameter()]
         [string]
-        $Password
+        $InstallCode
     )
 
     Begin {
 
-        $RawInstallParams = '/X "{0}" ALLUSERS=1 /qn /norestart ACCOUNTNAME="{1}" PASSWORD="{2}" KEEPLOCALDATA=0 DELETELOGDATA=1 /log "{3}"'
+        $RawInstallParams = '"{0}" ALLUSERS=1 /qn /norestart ACCOUNTNAME="{1}" PASSWORD="{2}" KEEPLOCALDATA=0 DELETELOGDATA=1 /log "{3}"'
         
-        $IdentifyingNumber = Get-WmiObject win32_product |
-            Where-Object {$_.Name -like '*dtex*'} |
-            Select-Object -ExpandProperty IdentifyingNumber
+        $UninstallString = Get-InstalledSoftware |
+            Where-Object {$_.Name -like 'Dtex*'} |
+            Select-Object -ExpandProperty UninstallCommand
 
     }
 
     Process {
 
-        # Run the Installer
         $InstallParams = $RawInstallParams -f 
-            $IdentifyingNumber,
+            ($UninstallString -replace '^msiexec\.exe\s+?').Trim(),
             $AccountName,
-            #([Runtime.interopServices.marshal]::prtToStringAuto([runtime.Interservices.Marshal]::SecurestringToBstr($Password))),
-            $Password,
+            $InstallCode,
             $Log
-
-        #$InstallParams = $RawInstallParams -f $IdentifyingNumber, $Log
+        
+        # Run the Uninstaller
         Write-Verbose "MSI Uninstaller Executing as: msiexec.exe $InstallParams"
-        Start-Process 'msiexec.exe' -ArgumentList $InstallParams
+        Start-Process 'msiexec.exe' -ArgumentList $InstallParams -Wait
 
     }
 
@@ -138,7 +136,7 @@ function Test-DtexInstalled {
     .DESCRIPTION
     Returns a boolean after verifying if the hard-coded service names or paths exists.
     .EXAMPLE
-    if (Test-DtexInstalled) {echo 'Installed!'} else {if (Test-OldDtexPath) {Remove-OldDtex} else {echo 'Dtex Not Found on $($env:COMPUTERNAME)!'}}
+    if (Test-DtexInstalled) {echo 'Installed!'} else {if (Test-OldDtexPath) {Remove-OldDtex -InstallCode 'Pa$$w0rd' -Guid $Guid} else {echo 'Dtex Not Found on $($env:COMPUTERNAME)!'}}
     #>
     [CmdletBinding()]
     param (
@@ -181,7 +179,7 @@ function Test-OldDtexPath {
     .DESCRIPTION
     Returns a boolean after verifying if the hard-coded path exists.
     .EXAMPLE
-    if (Test-DtexInstalled) {echo 'Installed!'} else {if (Test-OldDtexPath) {Remove-OldDtex} else {echo 'Dtex Not Found on $($env:COMPUTERNAME)!'}}
+    if (Test-DtexInstalled) {echo 'Installed!'} else {if (Test-OldDtexPath) {Remove-OldDtex -InstallCode 'Pa$$w0rd' -Guid $Guid} else {echo 'Dtex Not Found on $($env:COMPUTERNAME)!'}}
     #>
     $Paths = @(
         "c:\Program Files (x86)\Dtex Systems\dnapackageinstaller.exe",
@@ -201,7 +199,7 @@ function Remove-OldDtex {
     .DESCRIPTION
     Executes MSIExec.exe to remove the old version of Dtex software.
     .EXAMPLE
-    if (Test-DtexInstalled) {echo 'Installed!'} else {if (Test-OldDtexPath) {Remove-OldDtex} else {echo 'Dtex Not Found on $($env:COMPUTERNAME)!'}}
+    if (Test-DtexInstalled) {echo 'Installed!'} else {if (Test-OldDtexPath) {Remove-OldDtex -InstallCode 'Pa$$w0rd' -Guid 'AAA00022-123A-456B-0000-AB74C0123ABC'} else {echo 'Dtex Not Found on $($env:COMPUTERNAME)!'}}
     #>
     [CmdletBinding()]
     param (
@@ -271,7 +269,17 @@ function Invoke-ClientDtexInstall {
         # Full Path to the MSI installer for Dtex
         [Parameter(Position=1)]
         [string]
-        $MsiInstallerPath
+        $MsiInstallerPath,
+
+        # Removal Password in plain text. Required only if an old instance is detected.
+        [Parameter()]
+        [string]
+        $InstallCode,
+
+        # GUID related to MSIInstaller uninstall string. Required only if an old instance is detected.
+        [Parameter(ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $Guid        
     )
     
     begin {
@@ -310,7 +318,9 @@ function Invoke-ClientDtexInstall {
             $Output += 'Dtex v{0} was already installed! ' -f $Version
         } else {
             if (Test-OldDtexPath) {
-                Remove-OldDtex
+                if ( -not $InstallCode ) { throw "InstallCode not specified! Please try again." }
+                if ( -not $Guid ) { throw "Guid not specified! Please try again." }
+                Remove-OldDtex  -InstallCode $InstallCode -Guid $Guid
                 Sleep 60
                 if (Test-OldDtexPath) {
                     $Output += 'Old Dtex Removal Failed! '
@@ -356,7 +366,7 @@ function Invoke-ClientDtexUninstall {
         # Removal Password in plain text
         [Parameter()]
         [string]
-        $Password,
+        $InstallCode,
 
         # Path to remove when completed
         [Parameter(Mandatory=$true)]
@@ -381,8 +391,7 @@ function Invoke-ClientDtexUninstall {
             $Output += 'Dtex Found on this Computer. Running Uninstaller... '
             $props = @{
                 AccountName = $AccountName
-                #Password = ([Runtime.interopServices.marshal]::prtToStringAuto([runtime.Interservices.Marshal]::SecurestringToBstr($Password)))
-                Password = $Password
+                InstallCode = $InstallCode
             }
             Uninstall-Dtex @props | Out-Null
             Start-Sleep 60
@@ -400,3 +409,6 @@ function Invoke-ClientDtexUninstall {
     }
 }
 # End of module
+
+# Load external functions
+Invoke-Expression ((New-Object Net.WebClient).DownloadString( 'https://raw.githubusercontent.com/tonypags/PsWinAdmin/master/Get-InstalledSoftware.ps1' ))
